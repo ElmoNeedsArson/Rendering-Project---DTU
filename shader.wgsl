@@ -123,43 +123,6 @@ fn sample_directional_light(pos: vec3f) -> Light {
     return Light(l_e, - w_e, dist);
 }
 
-// fn sample_area_light(pos: vec3f, t: ptr<function, u32>) -> Light {
-//     var intensity = vec3f(0);
-//     var sum = vec3f(0);
-
-//     for (var i = 0u; i < arrayLength(&lightIndices); i++) {
-//         //let light_position = vPositions[lightIndeces[i]];
-
-//         let v0 = vAttribs[meshFaces[lightIndices[i]].x].vPositions;
-//         let v1 = vAttribs[meshFaces[lightIndices[i]].y].vPositions;
-//         let v2 = vAttribs[meshFaces[lightIndices[i]].z].vPositions;
-
-//         sum += (v0 + v1 + v2) / 3;
-//     }
-
-//     let light_position = sum / f32(arrayLength(&lightIndices));
-//     let w_i = normalize(light_position - pos);
-
-//     for (var i = 0u; i < arrayLength(&lightIndices); i++) {
-//         let v0 = vAttribs[meshFaces[lightIndices[i]].x].vPositions;
-//         let v1 = vAttribs[meshFaces[lightIndices[i]].y].vPositions;
-//         let v2 = vAttribs[meshFaces[lightIndices[i]].z].vPositions;
-//         let e0 = v1 - v0;
-//         let e1 = v2 - v0;
-
-//         var n = cross(e0, e1);
-//         let area = length(n) * 0.5;
-//         n = normalize(n);
-
-//         intensity += abs(dot(- w_i, n)) * area * materials[meshFaces[lightIndices[i]].w].emission;
-//     }
-
-//     let l_i = intensity / (length(light_position - pos) * length(light_position - pos));
-//     let dist = distance(light_position, pos);
-//     //let dist  = length(light_position - pos);
-//     return Light(l_i, w_i, dist);
-// }
-
 fn sample_area_light(pos: vec3f, t: ptr<function, u32>) -> Light {
     // Randomly pick a triangle from the light mesh
     let num_lights = arrayLength(&lightIndices);
@@ -209,30 +172,7 @@ fn sample_area_light(pos: vec3f, t: ptr<function, u32>) -> Light {
     return Light(L_i, w_i, dist);
 }
 
-fn intersect_plane(r: Ray, hit: ptr<function, HitInfo>, position: vec3f, onb: Onb) -> bool {
-    let denom = dot(r.direction, onb.normal);
-    if (abs(denom) > 0.0001) {
-        let dist = dot(position - r.origin, onb.normal) / denom;
-
-        if (dist >= r.tmin && dist <= r.tmax) {
-            hit.has_hit = true;
-            hit.dist = dist;
-            hit.normal = onb.normal;
-            hit.position = r.origin + (dist * r.direction);
-            // hit.specular = vec3f(0, 0, 0);
-            // hit.ambient = hit.color*0.1;
-            // hit.diffuse = hit.color*0.9;
-            return true;
-        }
-    }
-
-    return false;
-}
-
-//fn intersect_triangle(r: Ray, hit: ptr<function, HitInfo>, v: array<vec3f, 3>) -> bool {
 fn intersect_triangle(r: Ray, hit: ptr<function, HitInfo>, face: u32) -> bool {
-    // let e0 = v[1] - v[0];
-    // let e1 = v[2] - v[0];
     let e0 = vAttribs[meshFaces[face].y].vPositions - vAttribs[meshFaces[face].x].vPositions;
     let e1 = vAttribs[meshFaces[face].z].vPositions - vAttribs[meshFaces[face].x].vPositions;
     let normal = cross(e0, e1);
@@ -253,8 +193,6 @@ fn intersect_triangle(r: Ray, hit: ptr<function, HitInfo>, face: u32) -> bool {
             hit.has_hit = true;
             hit.dist = tprime;
 
-            //hit.normal = normalize(normal);
-
             // Interpolate vertex normals using barycentric coordinates
             let n0 = vAttribs[meshFaces[face].x].vertexNormals;
             let n1 = vAttribs[meshFaces[face].y].vertexNormals;
@@ -272,7 +210,6 @@ fn intersect_triangle(r: Ray, hit: ptr<function, HitInfo>, face: u32) -> bool {
 }
 
 fn intersect_sphere(r: Ray, hit: ptr<function, HitInfo>, center: vec3f, radius: f32) -> bool {
-    //⋯
     let a = dot(r.direction, r.direction);
     let b = 2.0 * dot(r.direction, r.origin - center);
     let c = dot(r.origin - center, r.origin - center) - radius * radius;
@@ -321,11 +258,6 @@ fn lambertian(r: ptr<function, Ray>, hit: ptr<function, HitInfo>, t: ptr<functio
     // Check if the shadow ray hits anything before the light
     let in_shadow = intersect_scene(&shadow_ray, & shadow_hit);
 
-    // if (in_shadow) {
-    //     // Only ambient if in shadow
-    //     return Le;
-    // }
-    // Diffuse shading - this is just the direct light
     var Lo: vec3f = (hit.diffuse / 3.14) * light.L_i * max(dot(hit.normal, light.w_i), 0.0);
 
     if (in_shadow) {
@@ -409,12 +341,6 @@ fn fresnel_R(cos_theta_i: f32, cos_theta_t: f32, n_i: f32, n_t: f32) -> f32 {
     return R;
 }
 
-// fn fresnel_R(cos_theta_i: f32, cos_theta_t: f32, ni_nt: f32) -> f32 {
-//     let r_parl = (ni_nt * cos_theta_i - cos_theta_t) / (ni_nt * cos_theta_i + cos_theta_t);
-//     let r_perp = (cos_theta_i - ni_nt * cos_theta_t) / (cos_theta_i + ni_nt * cos_theta_t);
-//     return 0.5f * (r_parl * r_parl + r_perp * r_perp);
-// }
-
 fn fresnel(r: ptr<function, Ray>, hit: ptr<function, HitInfo>, t: ptr<function, u32>) -> vec3f {
     //logic for a fresnel shader
     var cos_i = dot(r.direction, hit.normal);
@@ -491,9 +417,6 @@ fn refractive(r: ptr<function, Ray>, hit: ptr<function, HitInfo>) -> vec3f {
         hit.normal = - hit.normal;
     }
     let cos2_t = 1 - ((hit.n1n2 * hit.n1n2) * (1 - (cos_i * cos_i)));
-    // if (cos2_t < 0.0) {
-    //     return mirror(r, hit);
-    // }
 
     let mr = hit.n1n2 * (cos_i * hit.normal + r.direction) - hit.normal * sqrt(cos2_t);
     r.direction = mr;
@@ -505,7 +428,6 @@ fn refractive(r: ptr<function, Ray>, hit: ptr<function, HitInfo>) -> vec3f {
 }
 
 fn mirror(r: ptr<function, Ray>, hit: ptr<function, HitInfo>) -> vec3f {
-    //⋯ not for now
     let mr = reflect(r.direction, hit.normal);
     r.direction = mr;
     r.origin = hit.position;
@@ -550,29 +472,6 @@ fn main_vs(@builtin(vertex_index) VertexIndex: u32) -> VSOut {
     vsOut.coords = pos[VertexIndex];
     return vsOut;
 }
-
-// fn concentricSampleDisk(u: vec2f) -> vec2f {
-//     // Map uniform random numbers to [-1,1]^2
-//     let uOffset = 2.0 * u - vec2f(1.0, 1.0);
-
-//     if (uOffset.x == 0.0 && uOffset.y == 0.0) {
-//         return vec2f(0.0, 0.0);
-//     }
-
-//     var r: f32;
-//     var theta: f32;
-
-//     if (abs(uOffset.x) > abs(uOffset.y)) {
-//         r = uOffset.x;
-//         theta = (3.141592653589793 / 4.0) * (uOffset.y / uOffset.x);
-//     }
-//     else {
-//         r = uOffset.y;
-//         theta = (3.141592653589793 / 2.0) - (3.141592653589793 / 4.0) * (uOffset.x / uOffset.y);
-//     }
-
-//     return vec2f(r * cos(theta), r * sin(theta));
-// }
 
 fn get_camera_ray(ipcoords: vec2f, t: ptr<function, u32>) -> Ray {
     var qc = vec3f(ipcoords.x, ipcoords.y, uniforms.cam_const);
@@ -669,35 +568,6 @@ fn main_fs(@builtin(position) fragcoord: vec4f, @location(0) coords: vec2f) -> F
     return fsOut;
 }
 
-// @fragment
-// fn main_fs(@location(0) coords: vec2f) -> @location(0) vec4f {
-//     const bgcolor = vec4f(0.1, 0.3, 0.6, 1.0);
-//     const max_depth = 10;
-//     let uv = vec2f(coords.x * uniforms.aspect * 0.5f, coords.y * 0.5f);
-
-//     var result = vec3f(0.0);
-
-//     //let uv = 0.5 * vec2f(coords.x * uniforms.aspect + jitter[uniforms.jitterindex].x, coords.y + jitter[uniforms.jitterindex].y);
-//     for (var j = 0u; j < uniforms.jitterindex; j = j + 1u) {
-//         var r = get_camera_ray(uv + jitter[j]);
-//         var hit = HitInfo(false, 0.0, vec3f(0.0), vec3f(0.0), vec3f(0.0), vec3f(0.0), vec3f(0.0), vec3f(0.0), 0u, 0f, 0f, coords, 0u);
-//         for (var i = 0; i < max_depth; i++) {
-//             if (intersect_scene(&r, & hit)) {
-//                 result += shade(&r, & hit);
-//             }
-//             else {
-//                 result += bgcolor.rgb;
-//                 break;
-//             }
-//             if (hit.has_hit) {
-//                 break;
-//             }
-//         }
-//     }
-
-//     return vec4f(pow(result / f32(uniforms.jitterindex), vec3f(1.0 / uniforms.gamma)), bgcolor.a);
-// }
-
 fn intersect_trimesh(r: ptr<function, Ray>, hit: ptr<function, HitInfo>) -> bool {
     var branch_lvl = 0u;
     var near_node = 0u;
@@ -709,7 +579,6 @@ fn intersect_trimesh(r: ptr<function, Ray>, hit: ptr<function, HitInfo>) -> bool
         let tree_node = bspTree[node];
         let node_axis_leaf = tree_node.x & 3u;
         if (node_axis_leaf == BSP_LEAF) {
-            // A leaf was found ⋮
             let node_count = tree_node.x >> 2u;
             let node_id = tree_node.y;
             var found = false;
@@ -740,16 +609,12 @@ fn intersect_trimesh(r: ptr<function, Ray>, hit: ptr<function, HitInfo>) -> bool
         let axis_direction = r.direction[node_axis_leaf];
         let axis_origin = r.origin[node_axis_leaf];
         if (axis_direction >= 0.0f) {
-            near_node = tree_node.z;
-            // left
-            far_node = tree_node.w;
-            // right
+            near_node = tree_node.z; // left
+            far_node = tree_node.w; // right
         }
         else {
-            near_node = tree_node.w;
-            // right
-            far_node = tree_node.z;
-            // left
+            near_node = tree_node.w; // right
+            far_node = tree_node.z; // left
         }
 
         let node_plane = bspPlanes[node];
@@ -792,7 +657,6 @@ fn intersect_scene(r: ptr<function, Ray>, hit: ptr<function, HitInfo>) -> bool {
         hit.emission = hit.color * 0.1;
         hit.diffuse = hit.color * 0.9;
         hit.shader = 3u;
-        //hit.shader = 5u;
     }
 
     const sphere_center2 = vec3f(130.0, 90.0, 250.0);
@@ -810,8 +674,6 @@ fn intersect_scene(r: ptr<function, Ray>, hit: ptr<function, HitInfo>) -> bool {
         hit.diffuse = hit.color * 0.9;
         hit.shader = 6u;
         hit.sigma_t = vec3f(0.0, 0.1, 0.1);
-        //inverted rgb
-        //hit.shader = 5u;
     }
 
     if (intersect_min_max(r)) {
