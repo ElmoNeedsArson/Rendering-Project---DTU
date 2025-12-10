@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>My Page</title>
+    <script type="text/javascript" src="libraries/MV.js"></script>
+    <script type="text/javascript" src="libraries/TimingHelper.js"></script>
+    <script type="text/javascript" src="libraries/Aabb.js"></script>
+    <script type="text/javascript" src="libraries/BspTree_interleaved.js"></script>
+    <script type="text/javascript" src="libraries/OBJParser_interleaved.js"></script>
+    <script type="module" src="main.js"></script>
+    <script type="module" src="scripts/presets.js"></script>
+    <script id="wgsl" type="x-shader" src="shader.wgsl"></script>
+    <link rel="stylesheet" type="text/css" href="styles.css">
+</head>
+
+<body>
+    <div id="layout-container">
+
+        <main id="canvas-area">
+            <div class="canvas-container">
+                <canvas id="my-canvas" width="900" height="500">
+                    Please use a browser that supports HTML5 canvas.
+                </canvas>
+                <div id="crosshair">+</div>
+            </div>
+        </main>
+
+        <aside id="sidebar">
+            <h2>Settings</h2>
+
+            <div class="control-group">
+                <label class="control-label" for="gamma">Gamma</label>
+                <div class="control-row">
+                    <input type="range" id="gamma" name="gamma" min="1" max="10" value="1.5" step="0.1" />
+                    <span class="control-value" id="gammaValue">1.5</span>
+                </div>
+            </div>
+
+            <div class="control-group">
+                <label class="control-label" for="checkbox">Progressive Rendering</label>
+                <div class="control-row">
+                    <input type="checkbox" id="checkbox" checked>
+                    <span class="control-value"></span>
+                </div>
+            </div>
+
+            <div class="control-group">
+                <label class="control-label" for="blueBackground">Blue Background</label>
+                <div class="control-row">
+                    <input type="checkbox" id="blueBackground" checked>
+                    <span class="control-value"></span>
+                </div>
+            </div>
+
+            <div class="control-group">
+                <label class="control-label" for="focalDistance">Focal Distance</label>
+                <div class="control-row">
+                    <input type="range" id="focalDistance" name="focalDistance" min="1" max="500" value="100"
+                        step="0.1" />
+                    <span class="control-value" id="focalDistanceValue">100</span>
+                </div>
+            </div>
+
+            <div class="control-group tab-panel" id="panelLensRadius">
+                <label class="control-label" for="lensRadius">Aperture Radius</label>
+                <div class="control-row">
+                    <input type="range" id="lensRadius" name="lensRadius" min="0" max="10" value="0.7" step="0.1" />
+                    <span class="control-value" id="lensRadiusValue">0.7</span>
+                </div>
+            </div>
+
+            <div class="info">Focal length
+                <div id="fl_val"></div>
+            </div>
+
+            <div id="infoEl"></div>
+
+        </aside>
+    </div>
+
+    <footer id="bottom-bar">
+        <div id="preset-container">
+            <div class="preset-group">
+                <div class="preset-card" id="preset1a">
+                    <div class="preset-title">Preset 1A</div>
+                    <div class="preset-meta" id="preset1aMeta"></div>
+                </div>
+                <div class="preset-card" id="preset1b">
+                    <div class="preset-title">Preset 1B</div>
+                    <div class="preset-meta" id="preset1bMeta"></div>
+                </div>
+            </div>
+            <div class="preset-group">
+                <div class="preset-card" id="preset2a">
+                    <div class="preset-title">Preset 2A</div>
+                    <div class="preset-meta" id="preset2aMeta"></div>
+                </div>
+                <div class="preset-card" id="preset2b">
+                    <div class="preset-title">Preset 2B</div>
+                    <div class="preset-meta" id="preset2bMeta"></div>
+                </div>
+            </div>
+            <div class="preset-group">
+                <div class="preset-card" id="preset3a">
+                    <div class="preset-title">Preset 3A</div>
+                    <div class="preset-meta" id="preset3aMeta"></div>
+                </div>
+                <div class="preset-card" id="preset3b">
+                    <div class="preset-title">Preset 3B</div>
+                    <div class="preset-meta" id="preset3bMeta"></div>
+                </div>
+            </div>
+            <div class="preset-group">
+                <div class="preset-card" id="preset4a">
+                    <div class="preset-title">Preset 4A</div>
+                    <div class="preset-meta" id="preset4aMeta"></div>
+                </div>
+                <div class="preset-card" id="preset4b">
+                    <div class="preset-title">Preset 4B</div>
+                    <div class="preset-meta" id="preset4bMeta"></div>
+                </div>
+            </div>
+        </div>
+
+        <div id="controls-info-footer">
+            <h3>Controls</h3>
+            <span><code>Click canvas</code>: pointer lock</span>
+            <span><code>Move mouse</code>: look around</span>
+            <span><code>Esc</code>: exit</span>
+        </div>
+    </footer>
+</body>
+
+</html>
