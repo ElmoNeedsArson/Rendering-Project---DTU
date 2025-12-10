@@ -4,4 +4,4 @@ Should work out of the box when cloning the project. Need to view the project ov
 
 Showcases a depth of field implementation for a scene containing a minecraft boat exported as obj, placed in the famous cornell box.
 
-Authors: Jesse Strijker & Reece Emery
+Authors: [Jesse Strijker](https://github.com/ElmoNeedsArson) & [Reece Emery](https://github.com/rhieeysce)
