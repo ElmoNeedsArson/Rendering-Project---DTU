@@ -100,7 +100,7 @@ async function main() {
         focalDistance.addEventListener('input', () => {
             focalDistanceValueLabel.textContent = Number(focalDistance.value).toFixed(1);
             let fd = parseFloat(focalDistance.value);
-            fl_val_label.textContent = (fd * cam_const / (fd + cam_const)).toFixed(2)
+            fl_val_label.textContent = 'Focal length: ' + (fd * cam_const / (fd + cam_const)).toFixed(2);
             device.queue.writeBuffer(uniformBuffer, 84, flatten([focalDistance.value]));
             kickstartAnimate(frame);
             update();
@@ -179,6 +179,8 @@ async function main() {
             focalDistance.value = preset.focalDistance;
             focalDistanceValueLabel.textContent = Number(preset.focalDistance).toFixed(1);
             device.queue.writeBuffer(uniformBuffer, 84, flatten([preset.focalDistance]));
+            let fd = parseFloat(focalDistance.value);
+            fl_val_label.textContent = 'Focal length: ' + (fd * cam_const / (fd + cam_const)).toFixed(2);
 
             let oldFrameCount = frame;
 
