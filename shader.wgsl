@@ -30,21 +30,12 @@ struct HitInfo {
     color: vec3f,
     emission: vec3f,
     diffuse: vec3f,
-    specular: vec3f,
     shader: u32,
     n1n2: f32,
-    sphere_shininess: f32,
-    tex_coords: vec2f,
     face_idx: u32,
     emit: bool,
     throughput: vec3f,
     sigma_t: vec3f
-}
-
-struct Onb {
-    tangent: vec3f,
-    binormal: vec3f,
-    normal: vec3f,
 }
 
 struct Light {
@@ -105,24 +96,6 @@ const BSP_LEAF = 3u;
 var<private> branch_node: array<vec2u, MAX_LEVEL>;
 var<private> branch_ray: array<vec2f, MAX_LEVEL>;
 
-fn sample_point_light(pos: vec3f) -> Light {
-    let light_position = vec3f(0.0, 1.0, 0.0);
-    let rgb_intensity = vec3f(3.14, 3.14, 3.14);
-
-    let l_i = rgb_intensity / (length(light_position - pos) * length(light_position - pos));
-    let w_i = normalize(light_position - pos);
-    let dist = distance(light_position, pos);
-
-    return Light(l_i, w_i, dist);
-}
-
-fn sample_directional_light(pos: vec3f) -> Light {
-    const l_e = vec3f(3.14, 3.14, 3.14);
-    let w_e = normalize(vec3f(- 1.0));
-    const dist = 1.0e32;
-    return Light(l_e, - w_e, dist);
-}
-
 fn sample_area_light(pos: vec3f, t: ptr<function, u32>) -> Light {
     // Randomly pick a triangle from the light mesh
     let num_lights = arrayLength(&lightIndices);
@@ -172,88 +145,18 @@ fn sample_area_light(pos: vec3f, t: ptr<function, u32>) -> Light {
     return Light(L_i, w_i, dist);
 }
 
-fn intersect_triangle(r: Ray, hit: ptr<function, HitInfo>, face: u32) -> bool {
-    let e0 = vAttribs[meshFaces[face].y].vPositions - vAttribs[meshFaces[face].x].vPositions;
-    let e1 = vAttribs[meshFaces[face].z].vPositions - vAttribs[meshFaces[face].x].vPositions;
-    let normal = cross(e0, e1);
-    let denom = dot(normal, r.direction);
-    if abs(denom) > 1e-8 {
-        let tprime = (dot(normal, vAttribs[meshFaces[face].x].vPositions - r.origin)) / denom;
-        if (tprime < r.tmax) && (tprime > r.tmin) {
-            let c = cross((vAttribs[meshFaces[face].x].vPositions - r.origin), r.direction);
-            let beta = dot(e1, c) / denom;
-            if (beta < 0.0) {
-                return false;
-            }
-            let gamma = - 1 * dot(e0, c) / denom;
-            if (gamma < 0.0) || (beta + gamma > 1.0) {
-                return false;
-            }
-            let alpha = 1.0 - beta - gamma;
-            hit.has_hit = true;
-            hit.dist = tprime;
-
-            // Interpolate vertex normals using barycentric coordinates
-            let n0 = vAttribs[meshFaces[face].x].vertexNormals;
-            let n1 = vAttribs[meshFaces[face].y].vertexNormals;
-            let n2 = vAttribs[meshFaces[face].z].vertexNormals;
-
-            hit.normal = normalize(alpha * n0 + beta * n1 + gamma * n2);
-
-            hit.position = r.origin + (tprime * r.direction);
-            hit.specular = vec3f(0, 0, 0);
-            hit.face_idx = face;
-            return true;
-        }
-    }
-    return false;
-}
-
-fn intersect_sphere(r: Ray, hit: ptr<function, HitInfo>, center: vec3f, radius: f32) -> bool {
-    let a = dot(r.direction, r.direction);
-    let b = 2.0 * dot(r.direction, r.origin - center);
-    let c = dot(r.origin - center, r.origin - center) - radius * radius;
-    if ((b / 2) * (b / 2) - c < 0) {
-        return false;
-    }
-    let dist1 = - b / 2 - sqrt((b / 2) * (b / 2) - c);
-    let dist2 = - b / 2 + sqrt((b / 2) * (b / 2) - c);
-    if (dist1 >= r.tmin && dist1 <= r.tmax) {
-        hit.has_hit = true;
-        hit.dist = dist1;
-        hit.normal = normalize((r.origin + dist1 * r.direction) - center);
-        hit.position = r.origin + (dist1 * r.direction);
-        hit.n1n2 = 1.0 / 1.5;
-        hit.specular = vec3f(0.1, 0.1, 0.1);
-        return true;
-    }
-    else if (dist2 >= r.tmin && dist2 <= r.tmax) {
-        hit.has_hit = true;
-        hit.dist = dist2;
-        hit.normal = normalize((r.origin + dist2 * r.direction) - center);
-        hit.position = r.origin + (dist2 * r.direction);
-        hit.n1n2 = 1.0 / 1.5;
-        hit.specular = vec3f(0.1, 0.1, 0.1);
-        return true;
-    }
-
-    return false;
-}
-
 fn lambertian(r: ptr<function, Ray>, hit: ptr<function, HitInfo>, t: ptr<function, u32>) -> vec3f {
     //let light = sample_point_light(hit.position);
     var light = sample_area_light(hit.position, t);
     //let light = sample_directional_light(hit.position);
 
-    // Ambient and emission
-    let Le: vec3f = hit.emission;
     //let La: vec3f = hit.emission;
 
     // Create a shadow ray from hit.position towards the light
     let shadow_origin = hit.position + 0.001 * light.w_i;
     // offset to avoid self-intersection
     var shadow_ray = Ray(shadow_origin, light.w_i, 0.001, light.dist - 0.01);
-    var shadow_hit = HitInfo(false, 0.0, vec3f(0.0), vec3f(0.0), vec3f(0.0), vec3f(0.0), vec3f(0.0), vec3f(0.0), 0u, 0f, 0f, vec2f(0.0, 0.0), 0u, true, vec3f(1.0), vec3f(0.0));
+    var shadow_hit = HitInfo(false, 0.0, vec3f(0.0), vec3f(0.0), vec3f(0.0), vec3f(0.0), vec3f(0.0), 0u, 0f, 0u, true, vec3f(1.0), vec3f(0.0));
 
     // Check if the shadow ray hits anything before the light
     let in_shadow = intersect_scene(&shadow_ray, & shadow_hit);
@@ -266,7 +169,7 @@ fn lambertian(r: ptr<function, Ray>, hit: ptr<function, HitInfo>, t: ptr<functio
     }
 
     if (hit.emit) {
-        Lo += Le;
+        Lo += hit.emission;
     }
 
     //here comes new code:
@@ -313,98 +216,13 @@ fn rotate_to_normal(n: vec3f, v: vec3f) -> vec3f {
     return vec3f(1.0f + n.x * n.x * a, b, - s * n.x) * v.x + vec3f(s * b, s * (1.0f + n.y * n.y * a), - n.y) * v.y + n * v.z;
 }
 
-fn phong(r: ptr<function, Ray>, hit: ptr<function, HitInfo>) -> vec3f {
-    //need to calculate if ray is from outside or inside the sphere
-    let light = sample_point_light(hit.position);
-    let rho_d = hit.diffuse;
-    let rho_s = vec3f(0.1, 0.1, 0.1);
-    let s = hit.sphere_shininess;
-    let w_o = - r.direction;
-    let w_i = light.w_i;
-    let n = hit.normal;
-    let w_r = reflect(- w_i, hit.normal);
-
-    let Lr = ((rho_d / 3.14) + (rho_s * ((s + 2) / 6.28) * pow(max(dot(w_r, w_o), 0.0), s))) * light.L_i * max(dot(n, w_i), 0.0);
-    return Lr;
+fn fresnel_R(cos_theta_i: f32, cos_theta_t: f32, ni_nt: f32) -> f32 {
+    let r_parl = (ni_nt * cos_theta_i - cos_theta_t) / (ni_nt * cos_theta_i + cos_theta_t);
+    let r_perp = (cos_theta_i - ni_nt * cos_theta_t) / (cos_theta_i + ni_nt * cos_theta_t);
+    return 0.5f * (r_parl * r_parl + r_perp * r_perp);
 }
 
-fn glossy(r: ptr<function, Ray>, hit: ptr<function, HitInfo>) -> vec3f {
-    let ph = phong(r, hit);
-    refractive(r, hit);
-    return ph;
-}
-
-fn fresnel_R(cos_theta_i: f32, cos_theta_t: f32, n_i: f32, n_t: f32) -> f32 {
-    var r_perp = (n_i * cos_theta_i - n_t * cos_theta_t) / (n_i * cos_theta_i + n_t * cos_theta_t);
-    var r_par = (n_t * cos_theta_i - n_i * cos_theta_t) / (n_t * cos_theta_i + n_i * cos_theta_t);
-    var R = 0.5 * (r_perp * r_perp + r_par * r_par);
-    return R;
-}
-
-fn fresnel(r: ptr<function, Ray>, hit: ptr<function, HitInfo>, t: ptr<function, u32>) -> vec3f {
-    //logic for a fresnel shader
-    var cos_i = dot(r.direction, hit.normal);
-    var R: f32;
-    var n1 = 1.0;
-    var n2 = 1.5;
-    if (cos_i < 0.0) {
-        //ray from outside the sphere
-        hit.n1n2 = n1 / n2;
-        cos_i = - cos_i;
-
-        let cos2_t = 1 - ((hit.n1n2 * hit.n1n2) * (1 - (cos_i * cos_i)));
-
-        R = fresnel_R(cos_i, sqrt(cos2_t), n1, n2);
-        if (cos2_t < 0.0) {
-            R = 1;
-        }
-    }
-    else {
-        //ray from inside the sphere
-        hit.n1n2 = n2 / n1;
-        hit.normal = - hit.normal;
-
-        hit.throughput = exp(- hit.sigma_t * hit.dist);
-        let prob = (hit.throughput.x + hit.throughput.y + hit.throughput.z) / 3.0;
-
-        let roulette = rnd(t);
-        if (roulette > prob) {
-            hit.has_hit = true;
-            return vec3f(0.0, 0.0, 0.0);
-        }
-
-        let cos2_t = 1 - ((hit.n1n2 * hit.n1n2) * (1 - (cos_i * cos_i)));
-
-        R = fresnel_R(cos_i, sqrt(cos2_t), n2, n1);
-        if (cos2_t < 0.0) {
-            R = 1;
-        }
-    }
-
-    let cos2_t = 1 - ((hit.n1n2 * hit.n1n2) * (1 - (cos_i * cos_i)));
-
-    // var R = fresnel_R(cos_i, sqrt(cos2_t), hit.n1n2);
-    if (cos2_t < 0.0) {
-        R = 1;
-    }
-
-    let roulette = rnd(t);
-    if (roulette < R) {
-        return mirror(r, hit);
-    }
-
-    let mr = hit.n1n2 * (cos_i * hit.normal + r.direction) - hit.normal * sqrt(cos2_t);
-    r.direction = mr;
-    r.origin = hit.position;
-    r.tmin = 0.01;
-    r.tmax = 10000.0;
-    hit.has_hit = false;
-    hit.emit = true;
-
-    return vec3f(0.0, 0.0, 0.0);
-}
-
-fn refractive(r: ptr<function, Ray>, hit: ptr<function, HitInfo>) -> vec3f {
+fn transparent(r: ptr<function, Ray>, hit: ptr<function, HitInfo>, t: ptr<function, u32>) -> vec3f {
     var cos_i = dot(r.direction, hit.normal);
     if (cos_i < 0.0) {
         //ray from outside the sphere
@@ -415,15 +233,33 @@ fn refractive(r: ptr<function, Ray>, hit: ptr<function, HitInfo>) -> vec3f {
         //ray from inside the sphere
         hit.n1n2 = 1.5 / 1.0;
         hit.normal = - hit.normal;
+        hit.throughput *= exp(-hit.sigma_t * hit.dist);
+        let P = (hit.throughput.x + hit.throughput.y + hit.throughput.z) / 3.0;
+        if (rnd(t) > P) {   // absorb the ray
+            hit.has_hit = true;
+            return vec3f(0.0);
+        }
     }
     let cos2_t = 1 - ((hit.n1n2 * hit.n1n2) * (1 - (cos_i * cos_i)));
+    var R = fresnel_R(cos_i, sqrt(cos2_t), hit.n1n2);
 
-    let mr = hit.n1n2 * (cos_i * hit.normal + r.direction) - hit.normal * sqrt(cos2_t);
-    r.direction = mr;
+    if (cos2_t < 0.0) {
+        R = 1.0;
+    }
+
+    let roulette = rnd(t);
+
+    if (roulette < R) {
+        r.direction = reflect(r.direction, hit.normal);
+    }
+    else {
+        r.direction = hit.n1n2 * (cos_i * hit.normal + r.direction) - hit.normal * sqrt(cos2_t); 
+    }
     r.origin = hit.position;
     r.tmin = 0.01;
     r.tmax = 10000.0;
     hit.has_hit = false;
+    hit.emit = true;
     return vec3f(0.0, 0.0, 0.0);
 }
 
@@ -444,19 +280,10 @@ fn shade(r: ptr<function, Ray>, hit: ptr<function, HitInfo>, t: ptr<function, u3
             return lambertian(r, hit, t);
         }
         case 2 {
-            return phong(r, hit);
-        }
-        case 3 {
             return mirror(r, hit);
         }
-        case 4 {
-            return refractive(r, hit);
-        }
-        case 5 {
-            return glossy(r, hit);
-        }
-        case 6 {
-            return fresnel(r, hit, t);
+        case 3 {
+            return transparent(r, hit, t);
         }
         case default {
             return hit.color;
@@ -543,7 +370,7 @@ fn main_fs(@builtin(position) fragcoord: vec4f, @location(0) coords: vec2f) -> F
     let jittered_uv = uv + prog_jitter;
     //var r = get_camera_ray(jittered_uv);
     var r = get_camera_ray(jittered_uv, & t);
-    var hit = HitInfo(false, 0.0, vec3f(0.0), vec3f(0.0), vec3f(0.0), vec3f(0.0), vec3f(0.0), vec3f(0.0), 0u, 0f, 0f, coords, 0u, true, vec3f(1.0), vec3f(0.0));
+    var hit = HitInfo(false, 0.0, vec3f(0.0), vec3f(0.0), vec3f(0.0), vec3f(0.0), vec3f(0.0), 0u, 0f, 0u, true, vec3f(1.0), vec3f(0.0));
 
     for (var i = 0; i < max_depth; i++) {
         if (intersect_scene(&r, & hit)) {
@@ -639,40 +466,88 @@ fn intersect_trimesh(r: ptr<function, Ray>, hit: ptr<function, HitInfo>) -> bool
     return false;
 }
 
+fn intersect_triangle(r: Ray, hit: ptr<function, HitInfo>, face: u32) -> bool {
+    let e0 = vAttribs[meshFaces[face].y].vPositions - vAttribs[meshFaces[face].x].vPositions;
+    let e1 = vAttribs[meshFaces[face].z].vPositions - vAttribs[meshFaces[face].x].vPositions;
+    let normal = cross(e0, e1);
+    let denom = dot(normal, r.direction);
+    if abs(denom) > 1e-8 {
+        let tprime = (dot(normal, vAttribs[meshFaces[face].x].vPositions - r.origin)) / denom;
+        if (tprime < r.tmax) && (tprime > r.tmin) {
+            let c = cross((vAttribs[meshFaces[face].x].vPositions - r.origin), r.direction);
+            let beta = dot(e1, c) / denom;
+            if (beta < 0.0) {
+                return false;
+            }
+            let gamma = - 1 * dot(e0, c) / denom;
+            if (gamma < 0.0) || (beta + gamma > 1.0) {
+                return false;
+            }
+            let alpha = 1.0 - beta - gamma;
+            hit.has_hit = true;
+            hit.dist = tprime;
+
+            // Interpolate vertex normals using barycentric coordinates
+            let n0 = vAttribs[meshFaces[face].x].vertexNormals;
+            let n1 = vAttribs[meshFaces[face].y].vertexNormals;
+            let n2 = vAttribs[meshFaces[face].z].vertexNormals;
+
+            hit.normal = normalize(alpha * n0 + beta * n1 + gamma * n2);
+
+            hit.position = r.origin + (tprime * r.direction);
+            hit.face_idx = face;
+            return true;
+        }
+    }
+    return false;
+}
+
+fn intersect_sphere(r: Ray, hit: ptr<function, HitInfo>, center: vec3f, radius: f32) -> bool {
+    let a = dot(r.direction, r.direction);
+    let b = 2.0 * dot(r.direction, r.origin - center);
+    let c = dot(r.origin - center, r.origin - center) - radius * radius;
+    if ((b / 2) * (b / 2) - c < 0) {
+        return false;
+    }
+    let dist1 = - b / 2 - sqrt((b / 2) * (b / 2) - c);
+    let dist2 = - b / 2 + sqrt((b / 2) * (b / 2) - c);
+    if (dist1 >= r.tmin && dist1 <= r.tmax) {
+        hit.has_hit = true;
+        hit.dist = dist1;
+        hit.normal = normalize((r.origin + dist1 * r.direction) - center);
+        hit.position = r.origin + (dist1 * r.direction);
+        hit.n1n2 = 1.0 / 1.5;
+        return true;
+    }
+    else if (dist2 >= r.tmin && dist2 <= r.tmax) {
+        hit.has_hit = true;
+        hit.dist = dist2;
+        hit.normal = normalize((r.origin + dist2 * r.direction) - center);
+        hit.position = r.origin + (dist2 * r.direction);
+        hit.n1n2 = 1.0 / 1.5;
+        return true;
+    }
+
+    return false;
+}
+
 fn intersect_scene(r: ptr<function, Ray>, hit: ptr<function, HitInfo>) -> bool {
-    const triangle_color = vec3f(0.9);
 
     const sphere_center = vec3f(420, 90, 370.0);
     const sphere_radius = 90;
-    const sphere_refractive_index = 1.5;
     //hardcoded in fresnel
-    const sphere_shininess = 42.0;
-    const sphere_color = vec3f(0.0, 0.0, 0.0);
 
     if (intersect_sphere(*r, hit, sphere_center, sphere_radius)) {
         r.tmax = hit.dist;
-        hit.color = sphere_color;
-        hit.specular = vec3f(0.1, 0.1, 0.1);
-        hit.sphere_shininess = 42;
-        hit.emission = hit.color * 0.1;
-        hit.diffuse = hit.color * 0.9;
-        hit.shader = 3u;
+        hit.shader = 2u;
     }
 
     const sphere_center2 = vec3f(130.0, 90.0, 250.0);
     const sphere_radius2 = 90;
-    const sphere_refractive_index2 = 1.5;
-    const sphere_shininess2 = 42.0;
-    const sphere_color2 = vec3f(0.0, 0.0, 0.0);
 
     if (intersect_sphere(*r, hit, sphere_center2, sphere_radius2)) {
         r.tmax = hit.dist;
-        hit.color = sphere_color2;
-        hit.specular = vec3f(0.1, 0.1, 0.1);
-        hit.sphere_shininess = 42;
-        hit.emission = hit.color * 0.1;
-        hit.diffuse = hit.color * 0.9;
-        hit.shader = 6u;
+        hit.shader = 3u;
         hit.sigma_t = vec3f(0.0, 0.1, 0.1);
     }
 
@@ -683,7 +558,6 @@ fn intersect_scene(r: ptr<function, Ray>, hit: ptr<function, HitInfo>) -> bool {
             r.tmax = hit.dist;
             hit.color = materials[meshFaces[hit.face_idx].w].diffuse + materials[meshFaces[hit.face_idx].w].emission;
             hit.diffuse = materials[meshFaces[hit.face_idx].w].diffuse;
-            hit.specular = vec3f(0, 0, 0);
             hit.emission = materials[meshFaces[hit.face_idx].w].emission;
             hit.shader = 1u;
         }
